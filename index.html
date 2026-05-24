@@ -1,73 +1,41 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Microsoft Login Dashboard</title>
-  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+  <title>Dashboard</title>
 </head>
-
-<body style="font-family: Arial; padding: 20px;">
+<body style="font-family: Arial; padding:20px;">
 
   <h2>Dashboard</h2>
 
-  <button onclick="signIn()">Sign in with Microsoft</button>
-  <button onclick="signOut()">Sign out</button>
+  <input id="noteInput" placeholder="Type note..." style="width:300px;padding:6px;" />
+  <br><br>
 
-  <p id="status">Not signed in</p>
+  <button onclick="save()">Save</button>
+  <button onclick="load()">Load</button>
+  <button onclick="reset()">Reset</button>
 
-  <hr>
-
-  <input id="noteInput" placeholder="Type note..." />
-  <button onclick="saveLocal()">Save Note</button>
+  <p id="status"></p>
 
   <script>
-    // 🔴 PUT YOUR CLIENT ID HERE
-    const msalConfig = {
-      auth: {
-        clientId: "YOUR_CLIENT_ID_HERE",
-        authority: "https://login.microsoftonline.com/common",
-        redirectUri: window.location.origin
-      }
-    };
+    const KEY = "dashboard_v1";
 
-    const msalInstance = new msal.PublicClientApplication(msalConfig);
-
-    let account = null;
-
-    async function signIn() {
-      try {
-        const login = await msalInstance.loginPopup({
-          scopes: ["User.Read"]
-        });
-
-        account = login.account;
-        document.getElementById("status").innerText =
-          "Signed in as: " + account.username;
-
-      } catch (err) {
-        console.error(err);
-      }
+    function save() {
+      localStorage.setItem(KEY, document.getElementById("noteInput").value);
+      document.getElementById("status").innerText = "Saved";
     }
 
-    function signOut() {
-      msalInstance.logoutPopup();
-      account = null;
-      document.getElementById("status").innerText = "Signed out";
+    function load() {
+      document.getElementById("noteInput").value = localStorage.getItem(KEY) || "";
+      document.getElementById("status").innerText = "Loaded";
     }
 
-    function saveLocal() {
-      const val = document.getElementById("noteInput").value;
-      localStorage.setItem("note", val);
-      alert("Saved locally");
+    function reset() {
+      localStorage.removeItem(KEY);
+      document.getElementById("noteInput").value = "";
+      document.getElementById("status").innerText = "Reset";
     }
 
-    window.onload = async () => {
-      const accounts = msalInstance.getAllAccounts();
-      if (accounts.length > 0) {
-        account = accounts[0];
-        document.getElementById("status").innerText =
-          "Signed in as: " + account.username;
-      }
-    };
+    load();
   </script>
 
 </body>
