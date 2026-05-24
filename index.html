@@ -1,127 +1,74 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Dashboard</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      background: #f4f6f8;
-    }
-
-    header {
-      background: #1f2937;
-      color: white;
-      padding: 15px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .container {
-      padding: 20px;
-    }
-
-    .card {
-      background: white;
-      padding: 15px;
-      border-radius: 10px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      margin-bottom: 15px;
-    }
-
-    button {
-      padding: 8px 12px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      margin-left: 5px;
-    }
-
-    .primary {
-      background: #2563eb;
-      color: white;
-    }
-
-    .danger {
-      background: #dc2626;
-      color: white;
-    }
-
-    input {
-      padding: 8px;
-      width: 70%;
-      margin-right: 10px;
-    }
-  </style>
+  <title>Microsoft Login Dashboard</title>
+  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
 </head>
 
-<body>
-<header>
-  <h3>My Dashboard</h3>
-  <div>
-    <button class="primary" onclick="saveData()">Save</button>
-    <button onclick="loadData()">Load</button>
-    <button class="danger" onclick="clearData()">Reset</button>
-  </div>
-</header>
+<body style="font-family: Arial; padding: 20px;">
 
-<div class="container">
+  <h2>Dashboard</h2>
 
-  <div class="card">
-    <h4>Notes</h4>
-    <input id="noteInput" placeholder="Type something..." />
-  </div>
+  <button onclick="signIn()">Sign in with Microsoft</button>
+  <button onclick="signOut()">Sign out</button>
 
-  <div class="card">
-    <h4>Status</h4>
-    <p id="status">Not loaded</p>
-  </div>
+  <p id="status">Not signed in</p>
 
-</div>
+  <hr>
 
-<script>
-  // -------------------------
-  // LOCAL STORAGE (PRIMARY)
-  // -------------------------
-  const STORAGE_KEY = "dashboard_data_v1";
+  <input id="noteInput" placeholder="Type note..." />
+  <button onclick="saveLocal()">Save Note</button>
 
-  function saveData() {
-    const data = {
-      note: document.getElementById("noteInput").value,
-      time: new Date().toISOString()
+  <script>
+    // 🔴 PUT YOUR CLIENT ID HERE
+    const msalConfig = {
+      auth: {
+        clientId: "YOUR_CLIENT_ID_HERE",
+        authority: "https://login.microsoftonline.com/common",
+        redirectUri: window.location.origin
+      }
     };
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    document.getElementById("status").innerText = "Saved locally at " + new Date().toLocaleTimeString();
-  }
+    const msalInstance = new msal.PublicClientApplication(msalConfig);
 
-  function loadData() {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    let account = null;
 
-    if (!raw) {
-      document.getElementById("status").innerText = "No saved data found";
-      return;
+    async function signIn() {
+      try {
+        const login = await msalInstance.loginPopup({
+          scopes: ["User.Read"]
+        });
+
+        account = login.account;
+        document.getElementById("status").innerText =
+          "Signed in as: " + account.username;
+
+      } catch (err) {
+        console.error(err);
+      }
     }
 
-    const data = JSON.parse(raw);
-    document.getElementById("noteInput").value = data.note || "";
-    document.getElementById("status").innerText = "Loaded from local storage";
-  }
+    function signOut() {
+      msalInstance.logoutPopup();
+      account = null;
+      document.getElementById("status").innerText = "Signed out";
+    }
 
-  function clearData() {
-    localStorage.removeItem(STORAGE_KEY);
-    document.getElementById("noteInput").value = "";
-    document.getElementById("status").innerText = "Reset complete";
-  }
+    function saveLocal() {
+      const val = document.getElementById("noteInput").value;
+      localStorage.setItem("note", val);
+      alert("Saved locally");
+    }
 
-  // Auto-load once per browser (prevents repeated re-sync issues)
-  window.addEventListener("load", () => {
-    loadData();
-  });
-</script>
+    window.onload = async () => {
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length > 0) {
+        account = accounts[0];
+        document.getElementById("status").innerText =
+          "Signed in as: " + account.username;
+      }
+    };
+  </script>
 
 </body>
 </html>
