@@ -10,70 +10,88 @@
 <div id="root"></div>
 
 <script>
-// Storage — works immediately, Firebase syncs in background
-window._cache = null;
+// ── Storage engine ──────────────────────────────────────────────
+var _cache  = null;
+var _fbDb   = null;
+var _fbDone = false;          // true once Firebase attempt finished
+var _fbWait = [];             // callbacks waiting for Firebase
+
+function _onFbReady(fn) {
+  if (_fbDone) { fn(); } else { _fbWait.push(fn); }
+}
+function _fbResolve() {
+  _fbDone = true;
+  _fbWait.forEach(function(fn){ fn(); });
+  _fbWait = [];
+}
 
 window._swlLoad = async function(key) {
-  if (!window._cache) {
-    // Try Firebase first
-    if (window._fbDb) {
-      try {
-        var snap = await Promise.race([
-          window._fbDb.ref("swlhub").get(),
-          new Promise(function(_,rej){setTimeout(function(){rej(new Error("timeout"));},6000);})
-        ]);
-        window._cache = (snap && snap.exists()) ? (snap.val() || {}) : {};
-      } catch(e) { window._cache = {}; }
-    } else {
-      window._cache = {};
-    }
+  if (_cache !== null) {
+    return _cache[key] !== undefined ? _cache[key] : null;
   }
-  return (window._cache[key] !== undefined) ? window._cache[key] : null;
+
+  // Wait up to 6 s for Firebase before falling back
+  await new Promise(function(resolve) {
+    var t = setTimeout(function(){ _fbResolve(); resolve(); }, 6000);
+    _onFbReady(function(){ clearTimeout(t); resolve(); });
+  });
+
+  if (_fbDb) {
+    try {
+      var snap = await _fbDb.ref("swlhub").get();
+      _cache = (snap && snap.exists()) ? (snap.val() || {}) : {};
+    } catch(e) {
+      console.warn("Firebase read:", e.message);
+      _cache = {};
+    }
+  } else {
+    _cache = {};
+  }
+
+  return _cache[key] !== undefined ? _cache[key] : null;
 };
 
 window._swlStore = async function(key, val) {
-  if (!window._cache) window._cache = {};
-  window._cache[key] = val;
-  try { localStorage.setItem("swlhub_"+key, JSON.stringify(val)); } catch(e) {}
-  if (window._fbDb) {
-    try { window._fbDb.ref("swlhub/"+key).set(val); } catch(e) {}
+  if (!_cache) _cache = {};
+  _cache[key] = val;
+  if (_fbDb) {
+    try { _fbDb.ref("swlhub/" + key).set(val); } catch(e) {}
   }
+  try { localStorage.setItem("swlhub_" + key, JSON.stringify(val)); } catch(e) {}
 };
-</script>
 
-<!-- Firebase loads async - app works without it -->
-<script>
-(function() {
-  var s1 = document.createElement('script');
-  s1.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js';
-  s1.onload = function() {
-    var s2 = document.createElement('script');
-    s2.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js';
-    s2.onload = function() {
-      var s3 = document.createElement('script');
-      s3.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js';
-      s3.onload = function() {
-        try {
-          firebase.initializeApp({
-            apiKey: "AIzaSyCxsFNt8uSexMNLA0efA5Zg9dfxyKUgdog",
-            authDomain: "swl-hub-1dacd.firebaseapp.com",
-            databaseURL: "https://swl-hub-1dacd-default-rtdb.firebaseio.com",
-            projectId: "swl-hub-1dacd",
-            storageBucket: "swl-hub-1dacd.firebasestorage.app",
-            messagingSenderId: "557559511804",
-            appId: "1:557559511804:web:56f47827acecbd189e3579"
-          });
-          window._fbDb = firebase.database();
-          window._cache = null; // reset cache so next load pulls from Firebase
-          console.log("Firebase connected");
-        } catch(e) { console.warn("Firebase:", e.message); }
-      };
-      document.head.appendChild(s3);
-    };
-    document.head.appendChild(s2);
-  };
-  document.head.appendChild(s1);
-})();
+// ── Load Firebase then resolve the wait ─────────────────────────
+function _loadScript(src, cb) {
+  var s = document.createElement('script');
+  s.src = src;
+  s.onload = cb;
+  s.onerror = function(){ console.warn("Failed:", src); cb(); };
+  document.head.appendChild(s);
+}
+
+_loadScript('https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js', function() {
+  _loadScript('https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js', function() {
+    _loadScript('https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js', function() {
+      try {
+        firebase.initializeApp({
+          apiKey: "AIzaSyCxsFNt8uSexMNLA0efA5Zg9dfxyKUgdog",
+          authDomain: "swl-hub-1dacd.firebaseapp.com",
+          databaseURL: "https://swl-hub-1dacd-default-rtdb.firebaseio.com",
+          projectId: "swl-hub-1dacd",
+          storageBucket: "swl-hub-1dacd.firebasestorage.app",
+          messagingSenderId: "557559511804",
+          appId: "1:557559511804:web:56f47827acecbd189e3579"
+        });
+        _fbDb = firebase.database();
+        window._fbDb = _fbDb;
+        console.log("Firebase connected ✅");
+      } catch(e) {
+        console.warn("Firebase init failed:", e.message);
+      }
+      _fbResolve(); // tell the app Firebase is ready (or failed)
+    });
+  });
+});
 </script>
 
 <script>
