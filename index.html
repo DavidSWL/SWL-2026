@@ -73,7 +73,14 @@ window._swlStore = async function(key, val) {
   if (!_cache) _cache = {};
   _cache[key] = val;
   if (_fbDb) {
-    try { await _fbDb.ref("swlhub/" + key).set(val); } catch(e) { console.error("Firebase write failed for key:", key, e.message); }
+    try {
+      await _fbDb.ref("swlhub/" + key).set(val);
+    } catch(e) {
+      console.error("Firebase write failed for key:", key, e.message);
+      if (typeof window !== "undefined") {
+        alert("\u26A0\uFE0F Save failed \u2014 please check your internet connection and try again.\n\nIf this keeps happening, contact HR.\n\nError: " + e.message);
+      }
+    }
   }
   try { localStorage.setItem("swlhub_" + key, JSON.stringify(val)); } catch(e) {}
 };
